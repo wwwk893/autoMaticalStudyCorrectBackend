@@ -10,6 +10,11 @@ export class CreateSubmissionDto {
   @IsNotEmpty()
   assignmentId!: string;
 
+  @ApiProperty({ description: 'Optional client provided submission id for idempotency', required: false })
+  @IsOptional()
+  @IsString()
+  submissionId?: string;
+
   @ApiProperty({ description: 'Student identifier', example: 'student-456' })
   @IsString()
   @IsNotEmpty()

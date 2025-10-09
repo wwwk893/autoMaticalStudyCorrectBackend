@@ -22,7 +22,8 @@
   },
   "include": [
     "apps",
-    "packages"
+    "packages",
+    "src"
   ],
   "exclude": [
     "node_modules",
