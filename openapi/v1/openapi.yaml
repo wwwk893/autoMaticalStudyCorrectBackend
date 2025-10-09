@@ -1,0 +1,363 @@
+openapi: 3.1.0
+info:
+  title: AutoMark API v1
+  version: 1.0.0
+  description: >-
+    API 契约涵盖 REST 接口与 WebSocket 事件枚举，所有错误遵循 {code, message, traceId}。
+servers:
+  - url: https://api.example.com
+    description: Production
+  - url: http://localhost:3000
+    description: Local development
+paths:
+  /health:
+    get:
+      summary: Health check
+      responses:
+        '200':
+          description: API is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+  /submissions:
+    post:
+      summary: Create a submission
+      operationId: createSubmission
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubmissionRequest'
+      responses:
+        '201':
+          description: Submission accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionStatus'
+        '409':
+          $ref: '#/components/responses/ErrorResponse'
+  /submissions/{submissionId}:
+    get:
+      summary: Get submission status
+      operationId: getSubmissionStatus
+      parameters:
+        - name: submissionId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Submission status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionStatus'
+        '404':
+          $ref: '#/components/responses/ErrorResponse'
+  /auth/weapp/login:
+    post:
+      summary: Mini program login and binding
+      operationId: weappLogin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeappLoginRequest'
+      responses:
+        '200':
+          description: Login success
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthSession'
+        '409':
+          description: Binding conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorModel'
+  /uploads/presign:
+    post:
+      summary: Generate presigned upload
+      operationId: presignUpload
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresignRequest'
+      responses:
+        '200':
+          description: Presigned upload info
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresignResponse'
+        '400':
+          $ref: '#/components/responses/ErrorResponse'
+  /uploads/callback:
+    post:
+      summary: Receive storage callback
+      operationId: uploadCallback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UploadCallbackPayload'
+      responses:
+        '204':
+          description: Callback accepted
+        '401':
+          $ref: '#/components/responses/ErrorResponse'
+  /reports/gradebook:
+    get:
+      summary: Export grade report
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum: [pdf, excel]
+          required: true
+      responses:
+        '200':
+          description: Report export
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GradeReport'
+  /imports/roster:
+    post:
+      summary: Import roster file metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RosterImportRequest'
+      responses:
+        '202':
+          description: Import queued
+  /metrics:
+    get:
+      summary: Prometheus metrics endpoint
+      responses:
+        '200':
+          description: Prometheus metrics
+          content:
+            text/plain:
+              schema:
+                type: string
+  /slo/budget:
+    get:
+      summary: Current error budget
+      responses:
+        '200':
+          description: Error budget status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorBudget'
+components:
+  responses:
+    ErrorResponse:
+      description: Standard error model
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorModel'
+  schemas:
+    ErrorModel:
+      type: object
+      required: [code, message, traceId]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        traceId:
+          type: string
+    CreateSubmissionRequest:
+      type: object
+      required: [assignmentId, studentId, images]
+      properties:
+        assignmentId:
+          type: string
+        studentId:
+          type: string
+        subject:
+          type: string
+          enum: [zh, en, math]
+        submissionId:
+          type: string
+          description: Idempotency key for submission
+        images:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+    SubmissionStatus:
+      type: object
+      required: [id, status]
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [queued, ocr, parsed, graded, reported, failed]
+        receivedAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        payload:
+          type: object
+    WeappLoginRequest:
+      type: object
+      required: [code, teacherId]
+      properties:
+        code:
+          type: string
+        teacherId:
+          type: string
+        tenantId:
+          type: string
+        metadata:
+          type: object
+    AuthSession:
+      type: object
+      properties:
+        teacherId:
+          type: string
+        tenantId:
+          type: string
+        accessToken:
+          type: string
+        expiresIn:
+          type: integer
+        traceId:
+          type: string
+    PresignRequest:
+      type: object
+      required: [filename, contentType, size, pages]
+      properties:
+        filename:
+          type: string
+        contentType:
+          type: string
+        size:
+          type: integer
+        pages:
+          type: integer
+        checksum:
+          type: string
+    PresignResponse:
+      type: object
+      properties:
+        uploadUrl:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        formFields:
+          type: object
+          additionalProperties:
+            type: string
+        assetKey:
+          type: string
+    UploadCallbackPayload:
+      type: object
+      required: [assetKey, bucket, size, contentType]
+      properties:
+        assetKey:
+          type: string
+        bucket:
+          type: string
+        size:
+          type: integer
+        contentType:
+          type: string
+        pages:
+          type: integer
+    RosterImportRequest:
+      type: object
+      required: [sourceType, fileKey]
+      properties:
+        sourceType:
+          type: string
+          enum: [csv, excel]
+        fileKey:
+          type: string
+        tenantId:
+          type: string
+    GradeReport:
+      type: object
+      properties:
+        downloadUrl:
+          type: string
+        meta:
+          type: object
+          properties:
+            topMistakes:
+              type: array
+              items:
+                type: object
+                properties:
+                  questionId:
+                    type: string
+                  rate:
+                    type: number
+            radar:
+              type: array
+              items:
+                type: object
+                properties:
+                  dimension:
+                    type: string
+                  score:
+                    type: number
+            distribution:
+              type: array
+              items:
+                type: object
+                properties:
+                  bucket:
+                    type: string
+                  count:
+                    type: integer
+    ErrorBudget:
+      type: object
+      properties:
+        window:
+          type: string
+        targetP95Ms:
+          type: integer
+        currentP95Ms:
+          type: integer
+        failureRate:
+          type: number
+        remainingBudget:
+          type: number
+        status:
+          type: string
+x-websocket:
+  url: wss://api.example.com/ws
+  events:
+    - name: submission.updated
+      payload:
+        $ref: '#/components/schemas/SubmissionStatus'
+    - name: submission.failed
+      payload:
+        $ref: '#/components/schemas/ErrorModel'
